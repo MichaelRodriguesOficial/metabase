@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [1.4.2] - 2026-07-23
+
+### Added
+
+- Ability to manage dashboard access rights per Group and per User, in addition to the existing per Profile rights.
+
 ## [1.4.1] - 2025-11-25
 
 ### Fixed
