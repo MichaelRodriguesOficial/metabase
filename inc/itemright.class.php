@@ -227,8 +227,24 @@ class PluginMetabaseItemright extends CommonDBTM
      */
     public static function canGroupsViewDashboard(array $groupIds, $dashboardUuid): bool
     {
-        foreach ($groupIds as $groupId) {
-            if (self::canItemViewDashboard(Group::class, $groupId, $dashboardUuid)) {
+        if (empty($groupIds)) {
+            return false;
+        }
+
+        /** @var DBmysql $DB */
+        global $DB;
+
+        $iterator = $DB->request([
+            'FROM'  => self::getTable(),
+            'WHERE' => [
+                'itemtype'       => Group::class,
+                'items_id'       => $groupIds,
+                'dashboard_uuid' => $dashboardUuid,
+            ],
+        ]);
+
+        foreach ($iterator as $right) {
+            if (($right['rights'] & READ) !== 0) {
                 return true;
             }
         }
