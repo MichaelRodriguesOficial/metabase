@@ -82,7 +82,12 @@ class PluginMetabaseItemright extends CommonDBTM
 
         [$rightname, $rightvalue] = self::getRequiredRight($itemtype);
         if (Session::haveRight($rightname, $rightvalue)) {
-            return self::createTabEntry(self::getTypeName(), 0, $itemtype, PluginMetabaseConfig::getIcon());
+            return self::createTabEntry(
+                self::getTypeName(), 
+                0, 
+                $itemtype, 
+                PluginMetabaseConfig::getIcon()
+            );
         }
 
         return '';
@@ -101,16 +106,32 @@ class PluginMetabaseItemright extends CommonDBTM
         }
 
         [$rightname, $rightvalue] = self::getRequiredRight($itemtype);
-        if (Session::haveRight($rightname, $rightvalue)) {
-            $itemright = new self();
+        if (!Session::haveRight($rightname, $rightvalue)) {
+            return true;
+        }
+
+        $itemright = new self();
+        
+        try {
             $itemright->showRightsForm($itemtype, $item->fields['id']);
+        } catch (Exception $e) {
+            Toolbox::logError('Metabase ItemRight Error: ' . $e->getMessage());
+            Toolbox::logError($e->getTraceAsString());
+            
+            echo '<div class="alert alert-danger">';
+            echo '<i class="ti ti-alert-circle"></i> ';
+            echo __('An error occurred while loading Metabase rights.', 'metabase');
+            if ($_SESSION['glpi_use_mode'] == Session::DEBUG_MODE) {
+                echo '<br><br><strong>Debug:</strong> ' . htmlspecialchars($e->getMessage());
+            }
+            echo '</div>';
         }
 
         return true;
     }
 
     /**
-     * Display item (group/user) rights form.
+     * Display item (group/user) rights form usando Twig.
      *
      * @param string  $itemtype Group::class or User::class
      * @param integer $itemsId  Group or User id
@@ -129,75 +150,103 @@ class PluginMetabaseItemright extends CommonDBTM
             return false;
         }
 
-        $apiclient  = new PluginMetabaseAPIClient();
-        $dashboards = $apiclient->getDashboards();
-
-        if (!$dashboards) {
-            echo '<div class="alert alert-warning">' . __s('No dashboards found in Metabase.', 'metabase') . '</div>';
+        // Verificar configuração
+        $config = PluginMetabaseConfig::getConfig();
+        if (empty($config['host']) || empty($config['username']) || empty($config['password'])) {
+            echo '<div class="alert alert-warning">' .
+                '<i class="ti ti-alert-triangle"></i> ' .
+                __('Metabase is not configured yet. Please configure the plugin first.', 'metabase') .
+                '</div>';
             return false;
         }
 
-        echo '<form method="post" action="' . self::getFormURL() . '">';
-        echo '<div class="spaced" id="tabsbody">';
-        echo '<table class="tab_cadre_fixe" id="mainformtable">';
-
-        echo '<tr class="headerRow"><th colspan="2">' . self::getTypeName() . '</th></tr>';
-
-        Plugin::doHook('pre_item_form', ['item' => $this, 'options' => &$options]);
-
-        echo '<tr><th colspan="2">' . __s('Rights management', 'metabase') . '</th></tr>';
-
-        echo '<input type="hidden" name="itemtype" value="' . $itemtype . '" />';
-        echo '<input type="hidden" name="items_id" value="' . $itemsId . '" />';
-
-        echo '<tr class="tab_bg_4">';
-        echo '<td colspan="2" class="center">';
-        echo '<button type="submit" class="btn btn-outline-secondary" name="set_rights_to_all" value="1">'
-        . "<i class='ti ti-check'></i>"
-        . '<span>' . __s('Allow access to all', 'metabase') . '</span>'
-        . '</button>';
-        echo ' &nbsp; ';
-        echo '<button type="submit" class="btn btn-outline-secondary" name="set_rights_to_all" value="0">'
-        . "<i class='ti ti-forbid'></i>"
-        . '<span>' . __s('Disallow access to all', 'metabase') . '</span>'
-        . '</button>';
-        echo '</td>';
-        echo '</tr>';
-
-        foreach ($dashboards as $dashboard) {
-            echo '<tr class="tab_bg_1">';
-            echo '<td>' . $dashboard['name'] . '</td>';
-            echo '<td>';
-            Profile::dropdownRight(
-                sprintf('dashboard[%d]', $dashboard['id']),
-                [
-                    'value'   => self::getItemRightForDashboard($itemtype, $itemsId, $dashboard['id']),
-                    'nonone'  => 0,
-                    'noread'  => 0,
-                    'nowrite' => 1,
-                ],
-            );
-            echo '</td>';
-            echo '</tr>';
+        // Conectar ao Metabase
+        $apiclient = new PluginMetabaseAPIClient();
+        
+        if (!$apiclient->checkSession()) {
+            echo '<div class="alert alert-warning">' .
+                '<i class="ti ti-alert-triangle"></i> ' .
+                __('Unable to connect to Metabase. Please check your configuration.', 'metabase') .
+                '</div>';
+            return false;
         }
 
-        echo '<tr class="tab_bg_4">';
-        echo '<td colspan="2" class="center">';
-        echo Html::submit(_sx('button', 'Save'), [
-            'name'  => 'update',
-            'icon'  => 'ti ti-device-floppy',
-            'class' => 'btn btn-primary',
-        ]);
-        echo '</td>';
-        echo '</tr>';
+        // Buscar dashboards
+        $dashboards = $apiclient->getDashboards();
 
-        echo '</table>';
-        echo '</div>';
+        if (!$dashboards || !is_array($dashboards) || empty($dashboards)) {
+            echo '<div class="alert alert-warning">' .
+                '<i class="ti ti-alert-triangle"></i> ' .
+                __('No dashboards found in Metabase.', 'metabase') .
+                '</div>';
+            return false;
+        }
 
-        Html::closeForm();
+        // Preparar dados para o template
+        $templateData = [
+            'itemtype' => $itemtype,
+            'items_id' => $itemsId,
+            'dashboards' => [],
+        ];
+
+        // Adicionar direitos atuais para cada dashboard
+        foreach ($dashboards as $dashboard) {
+            // Filtrar apenas dashboards com embedding habilitado
+            if (!isset($dashboard['enable_embedding']) || !$dashboard['enable_embedding']) {
+                continue;
+            }
+            
+            $templateData['dashboards'][] = [
+                'id' => $dashboard['id'],
+                'name' => $dashboard['name'] ?? __('Unnamed Dashboard', 'metabase'),
+                'description' => $dashboard['description'] ?? '',
+                'rights' => self::getItemRightForDashboard(
+                    $itemtype, 
+                    $itemsId, 
+                    $dashboard['id']
+                ),
+            ];
+        }
+
+        if (empty($templateData['dashboards'])) {
+            echo '<div class="alert alert-warning">' .
+                '<i class="ti ti-alert-triangle"></i> ' .
+                __('No embeddable dashboards found in Metabase.', 'metabase') .
+                '</div>';
+            return false;
+        }
+
+        // Renderizar template Twig
+        $twig = PluginMetabaseTwig::getInstance();
+        $twig->renderSafe('itemright_form.html.twig', $templateData);
 
         return true;
     }
+
+    /**
+     * Renderiza uma mensagem de erro/aviso.
+     *
+     * @param string $message
+     * @param string $type (danger, warning, info, success)
+     * @return string
+     */
+    private function renderError(string $message, string $type = 'danger'): string
+    {
+        $icon = match($type) {
+            'warning' => 'ti-alert-triangle',
+            'info' => 'ti-info-circle',
+            'success' => 'ti-check-circle',
+            default => 'ti-alert-circle',
+        };
+        
+        return '<div class="alert alert-' . $type . '">' .
+               '<i class="ti ' . $icon . '"></i> ' .
+               htmlspecialchars($message) .
+               '</div>';
+    }
+
+    // ... CONTINUAÇÃO DOS MÉTODOS EXISTENTES (canGroupsViewDashboards, etc.) ...
+    // Mantenha todos os métodos que já estavam funcionando
 
     /**
      * Check if any group from the given list is able to view at least one dashboard.
@@ -227,12 +276,24 @@ class PluginMetabaseItemright extends CommonDBTM
      */
     public static function canGroupsViewDashboard(array $groupIds, $dashboardUuid): bool
     {
-        foreach ($groupIds as $groupId) {
-            if (self::canItemViewDashboard(Group::class, $groupId, $dashboardUuid)) {
+        if (empty($groupIds)) {
+            return false;
+        }
+        /** @var DBmysql $DB */
+        global $DB;
+        $iterator = $DB->request([
+            'FROM'  => self::getTable(),
+            'WHERE' => [
+                'itemtype'       => Group::class,
+                'items_id'       => $groupIds,
+                'dashboard_uuid' => $dashboardUuid,
+            ],
+        ]);
+        foreach ($iterator as $right) {
+            if (($right['rights'] & READ) !== 0) {
                 return true;
             }
         }
-
         return false;
     }
 
