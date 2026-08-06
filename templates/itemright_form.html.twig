@@ -1,40 +1,56 @@
 {# templates/itemright_form.html.twig #}
 
+{#
+ # Metabase Item Rights Form
+ # 
+ # This template displays the dashboard rights matrix for a Group or User.
+ # It shows all available dashboards from Metabase with their current rights.
+ # 
+ # Available variables:
+ #   - itemtype: string - Group::class or User::class
+ #   - items_id: int - ID of the Group or User
+ #   - can_update: bool - Whether the user has UPDATE permission
+ #   - dashboards: array - List of dashboards with id, name, description, rights
+ #}
+
 <div class="metabase-item-rights">
     <form method="post" action="{{ get_form_url('PluginMetabaseItemright') }}">
         <div class="spaced" id="tabsbody">
             <table class="tab_cadre_fixe" id="mainformtable">
                 
-                {# Cabeçalho #}
+                {# Table header #}
                 <tr class="headerRow">
                     <th colspan="2">{{ __s('Metabase', 'metabase') }}</th>
                 </tr>
 
-                {# Título da seção de direitos #}
+                {# Section title #}
                 <tr>
                     <th colspan="2">{{ __('Rights management', 'metabase') }}</th>
                 </tr>
 
-                {# Campos ocultos #}
+                {# Hidden fields #}
                 <input type="hidden" name="itemtype" value="{{ itemtype }}" />
                 <input type="hidden" name="items_id" value="{{ items_id }}" />
 
-                {# Botões de ação em massa #}
-                <tr class="tab_bg_4">
-                    <td colspan="2" class="center">
-                        <button type="submit" class="btn btn-outline-secondary" name="set_rights_to_all" value="1">
-                            <i class="ti ti-check"></i>
-                            <span>{{ __('Allow access to all', 'metabase') }}</span>
-                        </button>
-                        &nbsp;
-                        <button type="submit" class="btn btn-outline-secondary" name="set_rights_to_all" value="0">
-                            <i class="ti ti-forbid"></i>
-                            <span>{{ __('Disallow access to all', 'metabase') }}</span>
-                        </button>
-                    </td>
-                </tr>
+                {# Bulk actions buttons - only shown if user has UPDATE permission #}
+                {# This matches the behavior of PluginMetabaseProfileright #}
+                {% if can_update %}
+                    <tr class="tab_bg_4">
+                        <td colspan="2" class="center">
+                            <button type="submit" class="btn btn-outline-secondary" name="set_rights_to_all" value="1">
+                                <i class="ti ti-check"></i>
+                                <span>{{ __('Allow access to all', 'metabase') }}</span>
+                            </button>
+                            &nbsp;
+                            <button type="submit" class="btn btn-outline-secondary" name="set_rights_to_all" value="0">
+                                <i class="ti ti-forbid"></i>
+                                <span>{{ __('Disallow access to all', 'metabase') }}</span>
+                            </button>
+                        </td>
+                    </tr>
+                {% endif %}
 
-                {# Lista de dashboards com seus direitos #}
+                {# Dashboard list with rights dropdowns #}
                 {% for dashboard in dashboards %}
                     <tr class="tab_bg_1">
                         <td>
@@ -47,34 +63,33 @@
                         <td>
                             {{ dropdown_right({
                                 'name': 'dashboard[' ~ dashboard.id ~ ']',
-                                'value': dashboard.rights,
-                                'nonone': 0,
-                                'noread': 0,
-                                'nowrite': 1
+                                'value': dashboard.rights
                             }) }}
                         </td>
                     </tr>
                 {% endfor %}
 
-                {# Botão Salvar #}
-                <tr class="tab_bg_4">
-                    <td colspan="2" class="center">
-                        <button type="submit" class="btn btn-primary" name="update">
-                            <i class="ti ti-device-floppy"></i>
-                            <span>{{ _x('button', 'Save') }}</span>
-                        </button>
-                    </td>
-                </tr>
+                {# Save button - only shown if user has UPDATE permission #}
+                {% if can_update %}
+                    <tr class="tab_bg_4">
+                        <td colspan="2" class="center">
+                            <button type="submit" class="btn btn-primary" name="update">
+                                <i class="ti ti-device-floppy"></i>
+                                <span>{{ _x('button', 'Save') }}</span>
+                            </button>
+                        </td>
+                    </tr>
+                {% endif %}
 
             </table>
         </div>
 
-        {# CSRF Token #}
+        {# CSRF protection token #}
         <input type="hidden" name="_glpi_csrf_token" value="{{ csrf_token() }}" />
     </form>
 </div>
 
-{# CSS para estilização adicional se necessário #}
+{# Additional styling for better presentation #}
 <style>
 .metabase-item-rights .tab_cadre_fixe {
     width: 100%;
@@ -83,8 +98,13 @@
 }
 .metabase-item-rights .tab_bg_1 td {
     padding: 8px 12px;
+    vertical-align: middle;
 }
 .metabase-item-rights .btn {
     margin: 4px;
+}
+.metabase-item-rights .text-muted {
+    color: #6c757d;
+    font-size: 0.875em;
 }
 </style>

@@ -71,6 +71,12 @@ class PluginMetabaseItemright extends CommonDBTM
     /**
      * {@inheritDoc}
      * @see CommonGLPI::getTabNameForItem()
+     * 
+     * NOTE: Unlike PluginMetabaseProfileright which requires only READ permission
+     * to view the tab, we use READ here as well for consistency. The UPDATE
+     * permission is only required for modifying rights (saving changes).
+     * This allows users with read-only access to view the dashboard-rights matrix
+     * without being able to modify it.
      */
     public function getTabNameForItem(CommonGLPI $item, $withtemplate = 0)
     {
@@ -81,11 +87,12 @@ class PluginMetabaseItemright extends CommonDBTM
         }
 
         [$rightname, $rightvalue] = self::getRequiredRight($itemtype);
-        if (Session::haveRight($rightname, $rightvalue)) {
+        // Use READ permission to display the tab (consistent with PluginMetabaseProfileright)
+        if (Session::haveRight($rightname, READ)) {
             return self::createTabEntry(
-                self::getTypeName(), 
-                0, 
-                $itemtype, 
+                self::getTypeName(),
+                0,
+                $itemtype,
                 PluginMetabaseConfig::getIcon()
             );
         }
@@ -96,6 +103,9 @@ class PluginMetabaseItemright extends CommonDBTM
     /**
      * {@inheritDoc}
      * @see CommonGLPI::displayTabContentForItem()
+     * 
+     * NOTE: READ permission is sufficient to view the content.
+     * UPDATE permission is checked inside showRightsForm() for action buttons.
      */
     public static function displayTabContentForItem(CommonGLPI $item, $tabnum = 1, $withtemplate = 0)
     {
@@ -106,7 +116,8 @@ class PluginMetabaseItemright extends CommonDBTM
         }
 
         [$rightname, $rightvalue] = self::getRequiredRight($itemtype);
-        if (!Session::haveRight($rightname, $rightvalue)) {
+        // Use READ permission to display content (consistent with PluginMetabaseProfileright)
+        if (!Session::haveRight($rightname, READ)) {
             return true;
         }
 
@@ -115,8 +126,12 @@ class PluginMetabaseItemright extends CommonDBTM
         try {
             $itemright->showRightsForm($itemtype, $item->fields['id']);
         } catch (Exception $e) {
-            Toolbox::logError('Metabase ItemRight Error: ' . $e->getMessage());
-            Toolbox::logError($e->getTraceAsString());
+            if (method_exists('Toolbox', 'logDebug')) {
+                \Toolbox::logDebug('Metabase ItemRight Error: ' . $e->getMessage());
+                \Toolbox::logDebug($e->getTraceAsString());
+            } else {
+                error_log('Metabase ItemRight Error: ' . $e->getMessage());
+            }
             
             echo '<div class="alert alert-danger">';
             echo '<i class="ti ti-alert-circle"></i> ';
@@ -131,7 +146,7 @@ class PluginMetabaseItemright extends CommonDBTM
     }
 
     /**
-     * Display item (group/user) rights form usando Twig.
+     * Display item (group/user) rights form using Twig templates.
      *
      * @param string  $itemtype Group::class or User::class
      * @param integer $itemsId  Group or User id
@@ -146,52 +161,45 @@ class PluginMetabaseItemright extends CommonDBTM
         }
 
         [$rightname, $rightvalue] = self::getRequiredRight($itemtype);
-        if (!Session::haveRight($rightname, $rightvalue)) {
-            return false;
-        }
+        $canUpdate = Session::haveRight($rightname, UPDATE);
 
-        // Verificar configuração
         $config = PluginMetabaseConfig::getConfig();
         if (empty($config['host']) || empty($config['username']) || empty($config['password'])) {
             echo '<div class="alert alert-warning">' .
-                '<i class="ti ti-alert-triangle"></i> ' .
-                __('Metabase is not configured yet. Please configure the plugin first.', 'metabase') .
-                '</div>';
+                 '<i class="ti ti-alert-triangle"></i> ' .
+                 __('Metabase is not configured yet. Please configure the plugin first.', 'metabase') .
+                 '</div>';
             return false;
         }
 
-        // Conectar ao Metabase
         $apiclient = new PluginMetabaseAPIClient();
         
         if (!$apiclient->checkSession()) {
             echo '<div class="alert alert-warning">' .
-                '<i class="ti ti-alert-triangle"></i> ' .
-                __('Unable to connect to Metabase. Please check your configuration.', 'metabase') .
-                '</div>';
+                 '<i class="ti ti-alert-triangle"></i> ' .
+                 __('Unable to connect to Metabase. Please check your configuration.', 'metabase') .
+                 '</div>';
             return false;
         }
 
-        // Buscar dashboards
         $dashboards = $apiclient->getDashboards();
 
         if (!$dashboards || !is_array($dashboards) || empty($dashboards)) {
             echo '<div class="alert alert-warning">' .
-                '<i class="ti ti-alert-triangle"></i> ' .
-                __('No dashboards found in Metabase.', 'metabase') .
-                '</div>';
+                 '<i class="ti ti-alert-triangle"></i> ' .
+                 __('No dashboards found in Metabase.', 'metabase') .
+                 '</div>';
             return false;
         }
 
-        // Preparar dados para o template
         $templateData = [
             'itemtype' => $itemtype,
             'items_id' => $itemsId,
+            'can_update' => $canUpdate,
             'dashboards' => [],
         ];
 
-        // Adicionar direitos atuais para cada dashboard
         foreach ($dashboards as $dashboard) {
-            // Filtrar apenas dashboards com embedding habilitado
             if (!isset($dashboard['enable_embedding']) || !$dashboard['enable_embedding']) {
                 continue;
             }
@@ -201,8 +209,8 @@ class PluginMetabaseItemright extends CommonDBTM
                 'name' => $dashboard['name'] ?? __('Unnamed Dashboard', 'metabase'),
                 'description' => $dashboard['description'] ?? '',
                 'rights' => self::getItemRightForDashboard(
-                    $itemtype, 
-                    $itemsId, 
+                    $itemtype,
+                    $itemsId,
                     $dashboard['id']
                 ),
             ];
@@ -210,46 +218,92 @@ class PluginMetabaseItemright extends CommonDBTM
 
         if (empty($templateData['dashboards'])) {
             echo '<div class="alert alert-warning">' .
-                '<i class="ti ti-alert-triangle"></i> ' .
-                __('No embeddable dashboards found in Metabase.', 'metabase') .
-                '</div>';
+                 '<i class="ti ti-alert-triangle"></i> ' .
+                 __('No embeddable dashboards found in Metabase.', 'metabase') .
+                 '</div>';
             return false;
         }
 
-        // Renderizar template Twig
         $twig = PluginMetabaseTwig::getInstance();
         $twig->renderSafe('itemright_form.html.twig', $templateData);
 
         return true;
     }
 
+    // ============ OPTIMIZED BATCH QUERY METHODS ============
+
     /**
-     * Renderiza uma mensagem de erro/aviso.
+     * Get all dashboard IDs that the given groups can view.
+     * Uses a single batch query instead of per-group/per-dashboard queries.
+     * Performance: O(D) instead of O(D × G)
      *
-     * @param string $message
-     * @param string $type (danger, warning, info, success)
-     * @return string
+     * @param int[] $groupIds
+     * @return int[] List of dashboard IDs (Metabase IDs)
      */
-    private function renderError(string $message, string $type = 'danger'): string
+    public static function getGroupsViewableDashboards(array $groupIds): array
     {
-        $icon = match($type) {
-            'warning' => 'ti-alert-triangle',
-            'info' => 'ti-info-circle',
-            'success' => 'ti-check-circle',
-            default => 'ti-alert-circle',
-        };
-        
-        return '<div class="alert alert-' . $type . '">' .
-               '<i class="ti ' . $icon . '"></i> ' .
-               htmlspecialchars($message) .
-               '</div>';
+        if (empty($groupIds)) {
+            return [];
+        }
+
+        /** @var DBmysql $DB */
+        global $DB;
+
+        $iterator = $DB->request([
+            'FROM'  => self::getTable(),
+            'WHERE' => [
+                'itemtype' => Group::class,
+                'items_id' => $groupIds,
+                'rights'   => ['&', READ],
+            ],
+            'GROUPBY' => 'dashboard_id',
+        ]);
+
+        $dashboardIds = [];
+        foreach ($iterator as $row) {
+            $dashboardIds[] = (int) $row['dashboard_id'];
+        }
+
+        return $dashboardIds;
     }
 
-    // ... CONTINUAÇÃO DOS MÉTODOS EXISTENTES (canGroupsViewDashboards, etc.) ...
-    // Mantenha todos os métodos que já estavam funcionando
+    /**
+     * Get all dashboard IDs that the user can view.
+     * Single batch query for performance.
+     *
+     * @param integer $userId
+     * @return int[] List of dashboard IDs (Metabase IDs)
+     */
+    public static function getUserViewableDashboards($userId): array
+    {
+        if (empty($userId)) {
+            return [];
+        }
+
+        /** @var DBmysql $DB */
+        global $DB;
+
+        $iterator = $DB->request([
+            'FROM'  => self::getTable(),
+            'WHERE' => [
+                'itemtype' => User::class,
+                'items_id' => $userId,
+                'rights'   => ['&', READ],
+            ],
+            'GROUPBY' => 'dashboard_id',
+        ]);
+
+        $dashboardIds = [];
+        foreach ($iterator as $row) {
+            $dashboardIds[] = (int) $row['dashboard_id'];
+        }
+
+        return $dashboardIds;
+    }
 
     /**
      * Check if any group from the given list is able to view at least one dashboard.
+     * Uses LIMIT 1 for performance.
      *
      * @param int[] $groupIds
      *
@@ -257,44 +311,56 @@ class PluginMetabaseItemright extends CommonDBTM
      */
     public static function canGroupsViewDashboards(array $groupIds): bool
     {
-        foreach ($groupIds as $groupId) {
-            if (self::canItemViewDashboards(Group::class, $groupId)) {
-                return true;
-            }
+        if (empty($groupIds)) {
+            return false;
         }
 
-        return false;
+        /** @var DBmysql $DB */
+        global $DB;
+
+        $iterator = $DB->request([
+            'FROM'  => self::getTable(),
+            'WHERE' => [
+                'itemtype' => Group::class,
+                'items_id' => $groupIds,
+                'rights'   => ['&', READ],
+            ],
+            'LIMIT' => 1,
+        ]);
+
+        return count($iterator) > 0;
     }
 
     /**
      * Check if any group from the given list is able to view the given dashboard.
+     * Uses LIMIT 1 for performance.
      *
      * @param int[]   $groupIds
-     * @param integer $dashboardUuid
+     * @param integer $dashboardId  Dashboard ID in Metabase
      *
      * @return boolean
      */
-    public static function canGroupsViewDashboard(array $groupIds, $dashboardUuid): bool
+    public static function canGroupsViewDashboard(array $groupIds, $dashboardId): bool
     {
         if (empty($groupIds)) {
             return false;
         }
+
         /** @var DBmysql $DB */
         global $DB;
+
         $iterator = $DB->request([
             'FROM'  => self::getTable(),
             'WHERE' => [
                 'itemtype'       => Group::class,
                 'items_id'       => $groupIds,
-                'dashboard_uuid' => $dashboardUuid,
+                'dashboard_id'   => $dashboardId,
+                'rights'         => ['&', READ],
             ],
+            'LIMIT' => 1,
         ]);
-        foreach ($iterator as $right) {
-            if (($right['rights'] & READ) !== 0) {
-                return true;
-            }
-        }
-        return false;
+
+        return count($iterator) > 0;
     }
 
     /**
@@ -314,23 +380,17 @@ class PluginMetabaseItemright extends CommonDBTM
             return false;
         }
 
-        $iterator = $DB->request(
-            [
-                'FROM'  => self::getTable(),
-                'WHERE' => [
-                    'itemtype' => $itemtype,
-                    'items_id' => $itemsId,
-                ],
+        $iterator = $DB->request([
+            'FROM'  => self::getTable(),
+            'WHERE' => [
+                'itemtype' => $itemtype,
+                'items_id' => $itemsId,
+                'rights'   => ['&', READ],
             ],
-        );
+            'LIMIT' => 1,
+        ]);
 
-        foreach ($iterator as $right) {
-            if (($right['rights'] & READ) !== 0) {
-                return true;
-            }
-        }
-
-        return false;
+        return count($iterator) > 0;
     }
 
     /**
@@ -338,13 +398,31 @@ class PluginMetabaseItemright extends CommonDBTM
      *
      * @param string  $itemtype
      * @param integer $itemsId
-     * @param integer $dashboardUuid
+     * @param integer $dashboardId  Dashboard ID in Metabase
      *
      * @return boolean
      */
-    public static function canItemViewDashboard($itemtype, $itemsId, $dashboardUuid): bool
+    public static function canItemViewDashboard($itemtype, $itemsId, $dashboardId): bool
     {
-        return (self::getItemRightForDashboard($itemtype, $itemsId, $dashboardUuid) & READ) !== 0;
+        /** @var DBmysql $DB */
+        global $DB;
+
+        if (empty($itemsId)) {
+            return false;
+        }
+
+        $iterator = $DB->request([
+            'FROM'  => self::getTable(),
+            'WHERE' => [
+                'itemtype'     => $itemtype,
+                'items_id'     => $itemsId,
+                'dashboard_id' => $dashboardId,
+                'rights'       => ['&', READ],
+            ],
+            'LIMIT' => 1,
+        ]);
+
+        return count($iterator) > 0;
     }
 
     /**
@@ -352,20 +430,20 @@ class PluginMetabaseItemright extends CommonDBTM
      *
      * @param string  $itemtype
      * @param integer $itemsId
-     * @param integer $dashboardUuid
+     * @param integer $dashboardId  Dashboard ID in Metabase
      *
      * @return integer
      */
-    private static function getItemRightForDashboard($itemtype, $itemsId, $dashboardUuid)
+    private static function getItemRightForDashboard($itemtype, $itemsId, $dashboardId)
     {
         if (empty($itemsId)) {
             return 0;
         }
 
         $rightCriteria = [
-            'itemtype'       => $itemtype,
-            'items_id'       => $itemsId,
-            'dashboard_uuid' => $dashboardUuid,
+            'itemtype' => $itemtype,
+            'items_id' => $itemsId,
+            'dashboard_id' => $dashboardId,
         ];
 
         $itemright = new self();
@@ -381,44 +459,38 @@ class PluginMetabaseItemright extends CommonDBTM
      *
      * @param string  $itemtype
      * @param integer $itemsId
-     * @param integer $dashboardUuid
+     * @param integer $dashboardId  Dashboard ID in Metabase
      * @param integer $rights
      *
      * @return void
      */
-    public static function setDashboardRightsForItem($itemtype, $itemsId, $dashboardUuid, $rights)
+    public static function setDashboardRightsForItem($itemtype, $itemsId, $dashboardId, $rights)
     {
         $itemright = new self();
 
-        $rightsExists = $itemright->getFromDBByCrit(
-            [
-                'itemtype'       => $itemtype,
-                'items_id'       => $itemsId,
-                'dashboard_uuid' => $dashboardUuid,
-            ],
-        );
+        $rightsExists = $itemright->getFromDBByCrit([
+            'itemtype' => $itemtype,
+            'items_id' => $itemsId,
+            'dashboard_id' => $dashboardId,
+        ]);
 
         if ($rightsExists) {
-            $itemright->update(
-                [
-                    'id'     => $itemright->fields['id'],
-                    'rights' => $rights,
-                ],
-            );
+            $itemright->update([
+                'id'     => $itemright->fields['id'],
+                'rights' => $rights,
+            ]);
         } else {
-            $itemright->add(
-                [
-                    'itemtype'       => $itemtype,
-                    'items_id'       => $itemsId,
-                    'dashboard_uuid' => $dashboardUuid,
-                    'rights'         => $rights,
-                ],
-            );
+            $itemright->add([
+                'itemtype'     => $itemtype,
+                'items_id'     => $itemsId,
+                'dashboard_id' => $dashboardId,
+                'rights'       => $rights,
+            ]);
         }
     }
 
     /**
-     * Install itemrights database.
+     * Install itemrights database table.
      *
      * @param Migration $migration
      *
@@ -442,17 +514,26 @@ class PluginMetabaseItemright extends CommonDBTM
                      `id` int {$default_key_sign} NOT NULL AUTO_INCREMENT,
                      `itemtype` varchar(100) NOT NULL,
                      `items_id` int {$default_key_sign} NOT NULL,
-                     `dashboard_uuid` int NOT NULL,
+                     `dashboard_id` int NOT NULL,
                      `rights` int NOT NULL,
                      PRIMARY KEY (`id`),
-                     UNIQUE `itemtype_items_id_dashboard_uuid` (`itemtype`, `items_id`, `dashboard_uuid`)
+                     UNIQUE `itemtype_items_id_dashboard_id` (`itemtype`, `items_id`, `dashboard_id`),
+                     KEY `dashboard_id` (`dashboard_id`),
+                     KEY `rights` (`rights`)
                   ) ENGINE=InnoDB DEFAULT CHARSET={$default_charset} COLLATE={$default_collation} ROW_FORMAT=DYNAMIC;";
             $DB->doQuery($query);
+        } else {
+            $columns = $DB->listFields($table);
+            if (isset($columns['dashboard_uuid'])) {
+                $migration->displayMessage("Renaming dashboard_uuid to dashboard_id in $table");
+                $query = "ALTER TABLE `$table` CHANGE `dashboard_uuid` `dashboard_id` int {$default_key_sign} NOT NULL";
+                $DB->doQuery($query);
+            }
         }
     }
 
     /**
-     * Uninstall itemrights database.
+     * Uninstall itemrights database table.
      *
      * @return void
      */
