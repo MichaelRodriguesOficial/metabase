@@ -47,7 +47,7 @@ class PluginMetabaseDashboard extends CommonDBTM
      * Check if the currently logged-in user is able to view at least one
      * dashboard, combining profile, group and user based rights.
      *
-     * CUSTOM FORK: rights are additive (OR) across profile / groups / user.
+     * Rights are additive (OR) across profile / groups / user.
      *
      * @return boolean
      */
@@ -72,13 +72,13 @@ class PluginMetabaseDashboard extends CommonDBTM
      * Check if the currently logged-in user is able to view the given
      * dashboard, combining profile, group and user based rights.
      *
-     * CUSTOM FORK: rights are additive (OR) across profile / groups / user.
+     * Rights are additive (OR) across profile / groups / user.
      *
      * @param integer $dashboardUuid
      *
      * @return boolean
      */
-    public static function canCurrentUserViewDashboard($dashboardUuid): bool
+    public static function canCurrentUserViewDashboard(int $dashboardUuid): bool
     {
         if (PluginMetabaseProfileright::canProfileViewDashboard($_SESSION['glpiactiveprofile']['id'], $dashboardUuid)) {
             return true;
