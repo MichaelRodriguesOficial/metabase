@@ -162,7 +162,8 @@ class PluginMetabaseDashboard extends CommonDBTM
             return;
         }
 
-        if (null === $currentUuid) {
+        $allowedUuids = array_column($dashboards, 'id');
+        if (null === $currentUuid || !in_array($currentUuid, $allowedUuids)) {
             $firstDashboard = current($dashboards);
             $currentUuid    = $firstDashboard['id'];
         }
@@ -180,7 +181,7 @@ class PluginMetabaseDashboard extends CommonDBTM
 
         $signer_config = Configuration::forSymmetricSigner(
             new Sha256(),
-            InMemory::plainText($config['embedded_token']),
+            InMemory::plainText((new GLPIKey())->decrypt($config['embedded_token'])),
         );
         $token = $signer_config->builder()
           ->withClaim('resource', [

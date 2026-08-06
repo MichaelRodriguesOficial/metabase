@@ -30,7 +30,7 @@
 
 use function Safe\define;
 
-define('PLUGIN_METABASE_VERSION', '1.4.1');
+define('PLUGIN_METABASE_VERSION', '1.4.2');
 
 // Minimal GLPI version, inclusive
 define('PLUGIN_METABASE_MIN_GLPI', '11.0.0');
@@ -96,7 +96,7 @@ function plugin_init_metabase()
     $PLUGIN_HOOKS['add_javascript']['metabase'] = 'metabase.js';
 
     // Encryption
-    $PLUGIN_HOOKS['secured_configs']['metabase'] = ['password'];
+    $PLUGIN_HOOKS['secured_configs']['metabase'] = ['password', 'embedded_token'];
 }
 
 
