@@ -222,9 +222,32 @@ class PluginMetabaseItemright extends CommonDBTM
      *
      * @param int[]   $groupIds
      * @param integer $dashboardUuid
-     *
-     * @return boolean
-     */
+    public static function canGroupsViewDashboards(array $groupIds): bool
+    {
+        if (empty($groupIds)) {
+            return false;
+        }
+
+        /** @var DBmysql $DB */
+        global $DB;
+
+        $iterator = $DB->request([
+            'FROM'  => self::getTable(),
+            'WHERE' => [
+                'itemtype' => Group::class,
+                'items_id' => $groupIds,
+            ],
+        ]);
+
+        foreach ($iterator as $right) {
+            if (($right['rights'] & READ) !== 0) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public static function canGroupsViewDashboard(array $groupIds, $dashboardUuid): bool
     {
         if (empty($groupIds)) {
