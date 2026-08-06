@@ -1,0 +1,90 @@
+{# templates/itemright_form.html.twig #}
+
+<div class="metabase-item-rights">
+    <form method="post" action="{{ get_form_url('PluginMetabaseItemright') }}">
+        <div class="spaced" id="tabsbody">
+            <table class="tab_cadre_fixe" id="mainformtable">
+                
+                {# Cabeçalho #}
+                <tr class="headerRow">
+                    <th colspan="2">{{ __s('Metabase', 'metabase') }}</th>
+                </tr>
+
+                {# Título da seção de direitos #}
+                <tr>
+                    <th colspan="2">{{ __('Rights management', 'metabase') }}</th>
+                </tr>
+
+                {# Campos ocultos #}
+                <input type="hidden" name="itemtype" value="{{ itemtype }}" />
+                <input type="hidden" name="items_id" value="{{ items_id }}" />
+
+                {# Botões de ação em massa #}
+                <tr class="tab_bg_4">
+                    <td colspan="2" class="center">
+                        <button type="submit" class="btn btn-outline-secondary" name="set_rights_to_all" value="1">
+                            <i class="ti ti-check"></i>
+                            <span>{{ __('Allow access to all', 'metabase') }}</span>
+                        </button>
+                        &nbsp;
+                        <button type="submit" class="btn btn-outline-secondary" name="set_rights_to_all" value="0">
+                            <i class="ti ti-forbid"></i>
+                            <span>{{ __('Disallow access to all', 'metabase') }}</span>
+                        </button>
+                    </td>
+                </tr>
+
+                {# Lista de dashboards com seus direitos #}
+                {% for dashboard in dashboards %}
+                    <tr class="tab_bg_1">
+                        <td>
+                            <strong>{{ dashboard.name|e }}</strong>
+                            {% if dashboard.description %}
+                                <br>
+                                <small class="text-muted">{{ dashboard.description|e }}</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {{ dropdown_right({
+                                'name': 'dashboard[' ~ dashboard.id ~ ']',
+                                'value': dashboard.rights,
+                                'nonone': 0,
+                                'noread': 0,
+                                'nowrite': 1
+                            }) }}
+                        </td>
+                    </tr>
+                {% endfor %}
+
+                {# Botão Salvar #}
+                <tr class="tab_bg_4">
+                    <td colspan="2" class="center">
+                        <button type="submit" class="btn btn-primary" name="update">
+                            <i class="ti ti-device-floppy"></i>
+                            <span>{{ _x('button', 'Save') }}</span>
+                        </button>
+                    </td>
+                </tr>
+
+            </table>
+        </div>
+
+        {# CSRF Token #}
+        <input type="hidden" name="_glpi_csrf_token" value="{{ csrf_token() }}" />
+    </form>
+</div>
+
+{# CSS para estilização adicional se necessário #}
+<style>
+.metabase-item-rights .tab_cadre_fixe {
+    width: 100%;
+    max-width: 800px;
+    margin: 0 auto;
+}
+.metabase-item-rights .tab_bg_1 td {
+    padding: 8px 12px;
+}
+.metabase-item-rights .btn {
+    margin: 4px;
+}
+</style>
