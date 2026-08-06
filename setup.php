@@ -84,6 +84,11 @@ function plugin_init_metabase()
         $PLUGIN_HOOKS['helpdesk_menu_entry_icon']['metabase'] = 'ti ti-chart-bar';
     }
 
+    if (class_exists('\Glpi\Toolbox\TwigLoader')) {
+        $twig_loader = \Glpi\Toolbox\TwigLoader::getInstance();
+        $twig_loader->addPath(PLUGINMETABASE_DIR . '/templates', 'metabase');
+    }
+
 
     // profile rights management
     Plugin::registerClass('PluginMetabaseProfileright', ['addtabon' => 'Profile']);
