@@ -31,8 +31,6 @@
  * -------------------------------------------------------------------------
  */
 
-use function Safe\array_key_exists;
-
 function plugin_metabase_check_itemright_access($itemtype)
 {
     if (!in_array($itemtype, PluginMetabaseItemright::SUPPORTED_ITEMTYPES, true)) {
