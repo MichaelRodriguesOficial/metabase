@@ -1,0 +1,21 @@
+{# templates/itemright_alert.html.twig #}
+
+{#
+ # Metabase Item Rights - Alert Box
+ #
+ # Renders a Bootstrap-style alert box used by PluginMetabaseItemright
+ # for guard-clause and error messages (replaces raw echo HTML).
+ #
+ # Available variables:
+ #   - type: string - Bootstrap alert type suffix (e.g. "warning", "danger")
+ #   - icon: string - Tabler icon class suffix (e.g. "alert-triangle", "alert-circle")
+ #   - message: string - Already-translated message to display
+ #   - debug: string|null - Optional raw debug message, shown only in debug mode
+ #}
+
+<div class="alert alert-{{ type }}">
+    <i class="ti ti-{{ icon }}"></i> {{ message }}
+    {% if debug %}
+        <br><br><strong>{{ __('Debug:', 'metabase') }}</strong> {{ debug }}
+    {% endif %}
+</div>
