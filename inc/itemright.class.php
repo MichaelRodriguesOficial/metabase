@@ -133,13 +133,12 @@ class PluginMetabaseItemright extends CommonDBTM
                 error_log('Metabase ItemRight Error: ' . $e->getMessage());
             }
             
-            echo '<div class="alert alert-danger">';
-            echo '<i class="ti ti-alert-circle"></i> ';
-            echo __('An error occurred while loading Metabase rights.', 'metabase');
-            if ($_SESSION['glpi_use_mode'] == Session::DEBUG_MODE) {
-                echo '<br><br><strong>Debug:</strong> ' . htmlspecialchars($e->getMessage());
-            }
-            echo '</div>';
+            PluginMetabaseTwig::getInstance()->renderSafe('itemright_alert.html.twig', [
+                'type' => 'danger',
+                'icon' => 'alert-circle',
+                'message' => __('An error occurred while loading Metabase rights.', 'metabase'),
+                'debug' => $_SESSION['glpi_use_mode'] == Session::DEBUG_MODE ? $e->getMessage() : null,
+            ]);
         }
 
         return true;
@@ -165,30 +164,33 @@ class PluginMetabaseItemright extends CommonDBTM
 
         $config = PluginMetabaseConfig::getConfig();
         if (empty($config['host']) || empty($config['username']) || empty($config['password'])) {
-            echo '<div class="alert alert-warning">' .
-                 '<i class="ti ti-alert-triangle"></i> ' .
-                 __('Metabase is not configured yet. Please configure the plugin first.', 'metabase') .
-                 '</div>';
+            PluginMetabaseTwig::getInstance()->renderSafe('itemright_alert.html.twig', [
+                'type' => 'warning',
+                'icon' => 'alert-triangle',
+                'message' => __('Metabase is not configured yet. Please configure the plugin first.', 'metabase'),
+            ]);
             return false;
         }
 
         $apiclient = new PluginMetabaseAPIClient();
         
         if (!$apiclient->checkSession()) {
-            echo '<div class="alert alert-warning">' .
-                 '<i class="ti ti-alert-triangle"></i> ' .
-                 __('Unable to connect to Metabase. Please check your configuration.', 'metabase') .
-                 '</div>';
+            PluginMetabaseTwig::getInstance()->renderSafe('itemright_alert.html.twig', [
+                'type' => 'warning',
+                'icon' => 'alert-triangle',
+                'message' => __('Unable to connect to Metabase. Please check your configuration.', 'metabase'),
+            ]);
             return false;
         }
 
         $dashboards = $apiclient->getDashboards();
 
         if (!$dashboards || !is_array($dashboards) || empty($dashboards)) {
-            echo '<div class="alert alert-warning">' .
-                 '<i class="ti ti-alert-triangle"></i> ' .
-                 __('No dashboards found in Metabase.', 'metabase') .
-                 '</div>';
+            PluginMetabaseTwig::getInstance()->renderSafe('itemright_alert.html.twig', [
+                'type' => 'warning',
+                'icon' => 'alert-triangle',
+                'message' => __('No dashboards found in Metabase.', 'metabase'),
+            ]);
             return false;
         }
 
@@ -217,10 +219,11 @@ class PluginMetabaseItemright extends CommonDBTM
         }
 
         if (empty($templateData['dashboards'])) {
-            echo '<div class="alert alert-warning">' .
-                 '<i class="ti ti-alert-triangle"></i> ' .
-                 __('No embeddable dashboards found in Metabase.', 'metabase') .
-                 '</div>';
+            PluginMetabaseTwig::getInstance()->renderSafe('itemright_alert.html.twig', [
+                'type' => 'warning',
+                'icon' => 'alert-triangle',
+                'message' => __('No embeddable dashboards found in Metabase.', 'metabase'),
+            ]);
             return false;
         }
 
