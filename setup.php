@@ -30,7 +30,7 @@
 
 use function Safe\define;
 
-define('PLUGIN_METABASE_VERSION', '1.4.3');
+define('PLUGIN_METABASE_VERSION', '1.4.4-cavsul');
 
 // Minimal GLPI version, inclusive
 define('PLUGIN_METABASE_MIN_GLPI', '11.0.0');
@@ -78,7 +78,7 @@ function plugin_init_metabase()
     //display helpdesk menu if self-service and if is able to view at least one dashboard.
     if (
         $_SESSION['glpiactiveprofile']['interface'] == 'helpdesk'
-        && PluginMetabaseProfileright::canProfileViewDashboards($_SESSION['glpiactiveprofile']['id'])
+        && PluginMetabaseDashboard::canCurrentUserViewDashboards()
     ) {
         $PLUGIN_HOOKS['helpdesk_menu_entry']['metabase']      = '/front/selfservice.php';
         $PLUGIN_HOOKS['helpdesk_menu_entry_icon']['metabase'] = 'ti ti-chart-bar';
@@ -87,6 +87,13 @@ function plugin_init_metabase()
 
     // profile rights management
     Plugin::registerClass('PluginMetabaseProfileright', ['addtabon' => 'Profile']);
+
+    // group and user rights management
+    Plugin::registerClass('PluginMetabaseItemright', ['addtabon' => [Group::class, User::class]]);
+    $PLUGIN_HOOKS['item_purge']['metabase'] = [
+        Group::class => [PluginMetabaseItemright::class, 'cleanForItem'],
+        User::class  => [PluginMetabaseItemright::class, 'cleanForItem'],
+    ];
 
     // css & js
     $PLUGIN_HOOKS['add_css']['metabase']        = 'metabase.css';
