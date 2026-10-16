@@ -5,12 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
-## [1.4.4-cavsul] - 2026-10-16
+## [1.4.4] - 2026-10-16
 
 ### Added
 
 - Manage dashboard access rights per Group and per User (in addition to per Profile)
-  (backport for GLPI 11 of https://github.com/pluginsGLPI/metabase/pull/144)
 
 ## [1.4.3] - 2026-10-06
 
